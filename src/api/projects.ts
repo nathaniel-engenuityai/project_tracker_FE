@@ -12,7 +12,7 @@ export interface Project {
 }
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL || 'https://project-tracker-backend-889275799849.us-central1.run.app/api',
 });
 
 export const getProjects = () => api.get<Project[]>('/projects');
