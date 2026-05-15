@@ -1,11 +1,13 @@
+import { formatMinutes } from '../utils/time';
+
 interface Props {
-  estimatedHours: number;
-  loggedHours: number;
+  estimatedMinutes: number;
+  loggedMinutes: number;
 }
 
-const ProgressBar = ({ estimatedHours, loggedHours }: Props) => {
+const ProgressBar = ({ estimatedMinutes, loggedMinutes }: Props) => {
   const percentage = Math.min(
-    Math.round((loggedHours / estimatedHours) * 100),
+    Math.round((loggedMinutes / estimatedMinutes) * 100),
     100
   );
 
@@ -17,27 +19,11 @@ const ProgressBar = ({ estimatedHours, loggedHours }: Props) => {
 
   return (
     <div style={{ marginTop: '8px' }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: '13px',
-          marginBottom: '4px',
-        }}
-      >
-        <span>{loggedHours}h logged</span>
-        <span>
-          {percentage}% of {estimatedHours}h
-        </span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+        <span>{formatMinutes(loggedMinutes)} logged</span>
+        <span>{percentage}% of {formatMinutes(estimatedMinutes)}</span>
       </div>
-      <div
-        style={{
-          background: '#e0e0e0',
-          borderRadius: '999px',
-          height: '10px',
-          overflow: 'hidden',
-        }}
-      >
+      <div style={{ background: '#e0e0e0', borderRadius: '999px', height: '10px', overflow: 'hidden' }}>
         <div
           style={{
             width: `${percentage}%`,
@@ -50,7 +36,7 @@ const ProgressBar = ({ estimatedHours, loggedHours }: Props) => {
       </div>
       {percentage >= 100 && (
         <p style={{ color: '#e74c3c', fontSize: '12px', marginTop: '4px' }}>
-          ⚠ Over estimate by {loggedHours - estimatedHours}h
+          ⚠ Over estimate by {formatMinutes(loggedMinutes - estimatedMinutes)}
         </p>
       )}
     </div>

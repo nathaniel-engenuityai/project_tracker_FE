@@ -1,39 +1,63 @@
 import { useState, useEffect } from 'react';
 import type { Project } from '../api/projects';
+import { toMinutes } from '../utils/time';
 
-type ProjectFormData = Omit<Project, '_id' | 'loggedHours' | 'status' | 'createdAt' | 'updatedAt'>;
-
-interface ProjectFormProps {
-  onSubmit: (data: ProjectFormData) => void;
-  existingProject?: Project | null;
+interface Props {
+  onSubmit: (data: {
+    name: string;
+    description: string;
+    category: string;
+    priority: 'low' | 'medium' | 'high';
+    estimatedMinutes: number;
+  }) => void;
+  existingProject?: Project;
   onCancel?: () => void;
+  categories: string[];
 }
 
-const ProjectForm = ({ onSubmit, existingProject, onCancel }: ProjectFormProps) => {
+const ProjectForm = ({ onSubmit, existingProject, onCancel, categories }: Props) => {
   const [form, setForm] = useState({
     name: '',
     description: '',
-    estimatedHours: '',
+    category: '',
+    newCategory: '',
+    priority: 'medium' as 'low' | 'medium' | 'high',
+    timeValue: '',
+    timeUnit: 'hours' as 'hours' | 'minutes',
   });
 
   useEffect(() => {
     if (existingProject) {
+      const isHours = existingProject.estimatedMinutes % 60 === 0;
       setForm({
         name: existingProject.name,
         description: existingProject.description || '',
-        estimatedHours: String(existingProject.estimatedHours),
+        category: existingProject.category || '',
+        newCategory: '',
+        priority: existingProject.priority,
+        timeValue: isHours
+          ? String(existingProject.estimatedMinutes / 60)
+          : String(existingProject.estimatedMinutes),
+        timeUnit: isHours ? 'hours' : 'minutes',
       });
     }
   }, [existingProject]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({ ...form, estimatedHours: Number(form.estimatedHours) });
-    setForm({ name: '', description: '', estimatedHours: '' });
+    const finalCategory = form.category === '__new__' ? form.newCategory.trim() : form.category;
+    onSubmit({
+      name: form.name,
+      description: form.description,
+      category: finalCategory,
+      priority: form.priority,
+      estimatedMinutes: toMinutes(Number(form.timeValue), form.timeUnit),
+    });
+    setForm({ name: '', description: '', category: '', newCategory: '', priority: 'medium', timeValue: '', timeUnit: 'hours' });
   };
 
   return (
@@ -53,17 +77,50 @@ const ProjectForm = ({ onSubmit, existingProject, onCancel }: ProjectFormProps) 
         onChange={handleChange}
         style={inputStyle}
       />
-      <input
-        name="estimatedHours"
-        type="number"
-        placeholder="Estimated hours"
-        value={form.estimatedHours}
-        onChange={handleChange}
-        required
-        min="0.5"
-        step="0.5"
-        style={inputStyle}
-      />
+
+      <select name="category" value={form.category} onChange={handleChange} style={inputStyle}>
+        <option value="">No category</option>
+        {categories.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+        <option value="__new__">+ New category</option>
+      </select>
+
+      {form.category === '__new__' && (
+        <input
+          name="newCategory"
+          placeholder="Category name"
+          value={form.newCategory}
+          onChange={handleChange}
+          required
+          style={inputStyle}
+        />
+      )}
+
+      <select name="priority" value={form.priority} onChange={handleChange} style={inputStyle}>
+        <option value="low">Low priority</option>
+        <option value="medium">Medium priority</option>
+        <option value="high">High priority</option>
+      </select>
+
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <input
+          name="timeValue"
+          type="number"
+          placeholder={`Estimated ${form.timeUnit}`}
+          value={form.timeValue}
+          onChange={handleChange}
+          required
+          min="1"
+          step={form.timeUnit === 'hours' ? '0.5' : '1'}
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        <select name="timeUnit" value={form.timeUnit} onChange={handleChange} style={{ ...inputStyle, width: '110px' }}>
+          <option value="hours">Hours</option>
+          <option value="minutes">Minutes</option>
+        </select>
+      </div>
+
       <div style={{ display: 'flex', gap: '8px' }}>
         <button type="submit" style={primaryBtn}>
           {existingProject ? 'Update' : 'Add Project'}
@@ -83,6 +140,8 @@ const inputStyle: React.CSSProperties = {
   borderRadius: '6px',
   border: '1px solid #ccc',
   fontSize: '14px',
+  width: '100%',
+  boxSizing: 'border-box',
 };
 
 const primaryBtn: React.CSSProperties = {
