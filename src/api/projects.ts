@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { auth } from '../firebase';
 
 export interface Project {
   _id: string;
@@ -35,6 +36,15 @@ const api = axios.create({
   baseURL: 'https://project-tracker-backend-889275799849.us-central1.run.app/api',
 });
 
+api.interceptors.request.use(async (config) => {
+  const user = auth.currentUser;
+  if (user) {
+    const token = await user.getIdToken();
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export const getProjects = (filters: ProjectFilters = {}) => {
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
@@ -46,13 +56,9 @@ export const getProjects = (filters: ProjectFilters = {}) => {
 };
 
 export const getProject = (id: string) => api.get<Project>(`/projects/${id}`);
-
 export const createProject = (data: Omit<Project, '_id' | 'loggedMinutes' | 'status' | 'createdAt' | 'updatedAt'>) =>
   api.post<Project>('/projects', data);
-
 export const updateProject = (id: string, data: Partial<Project>) =>
   api.put<Project>(`/projects/${id}`, data);
-
 export const deleteProject = (id: string) => api.delete(`/projects/${id}`);
-
 export const getCategories = () => api.get<string[]>('/projects/categories');

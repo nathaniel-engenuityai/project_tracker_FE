@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import type { User } from 'firebase/auth';
 import type { Project, ProjectFilters } from '../api/projects';
 import {
   getProjects,
@@ -10,7 +11,12 @@ import {
 import ProjectCard from '../components/ProjectCard';
 import ProjectForm from '../components/ProjectForm';
 
-const Dashboard = () => {
+interface DashboardProps {
+  user: User;
+  onLogout: () => void;
+}
+
+const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -108,12 +114,17 @@ const Dashboard = () => {
         <div>
           <h1 style={{ margin: 0, fontSize: '24px' }}>Project Tracker</h1>
           <p style={{ margin: '4px 0 0', color: '#666', fontSize: '14px' }}>
-            {total} project{total !== 1 ? 's' : ''}
+            {total} project{total !== 1 ? 's' : ''} · {user.displayName}
           </p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} style={addBtn}>
-          {showForm ? 'Cancel' : '+ New Project'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button onClick={() => setShowForm(!showForm)} style={addBtn}>
+            {showForm ? 'Cancel' : '+ New Project'}
+          </button>
+          <button onClick={onLogout} style={logoutBtn}>
+            Sign out
+          </button>
+        </div>
       </div>
 
       {/* Error */}
@@ -311,6 +322,17 @@ const pageBtn: React.CSSProperties = {
   fontSize: '13px',
   background: '#f0f0f0',
   color: '#333',
+};
+
+
+const logoutBtn: React.CSSProperties = {
+  padding: '10px 16px',
+  background: '#f0f0f0',
+  color: '#333',
+  border: 'none',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  fontSize: '14px',
 };
 
 export default Dashboard;
