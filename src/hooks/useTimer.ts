@@ -1,71 +1,58 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 interface UseTimerProps {
-  onStop: (elapsedMinutes: number) => void;
+  onStop: (id: string, elapsedMinutes: number) => void;
 }
 
 export const useTimer = ({ onStop }: UseTimerProps) => {
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<Record<string, number>>({});
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number | null>(null);
+  const activeIdRef = useRef<string | null>(null);
 
-  const start = useCallback((projectId: string) => {
-    if (activeProjectId && activeProjectId !== projectId) {
-      stop();
-    }
-    setActiveProjectId(projectId);
+  activeIdRef.current = activeId;
+
+  const stop = useCallback(() => {
+    const currentId = activeIdRef.current;
+    if (!currentId || !startTimeRef.current) return;
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    const secondsElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+    const minutesElapsed = Math.max(1, Math.round(secondsElapsed / 60));
+    onStop(currentId, minutesElapsed);
+    setElapsed((prev) => ({ ...prev, [currentId]: 0 }));
+    setActiveId(null);
+    startTimeRef.current = null;
+  }, [onStop]);
+
+  const start = useCallback((id: string) => {
+    if (activeIdRef.current) stop();
+    setActiveId(id);
     startTimeRef.current = Date.now();
-
     intervalRef.current = setInterval(() => {
       if (startTimeRef.current) {
         const secondsElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        setElapsed((prev) => ({ ...prev, [projectId]: secondsElapsed }));
+        setElapsed((prev) => ({ ...prev, [id]: secondsElapsed }));
       }
     }, 1000);
-  }, [activeProjectId]);
+  }, [stop]);
 
-  const stop = useCallback(() => {
-    if (!activeProjectId || !startTimeRef.current) return;
-
-    if (intervalRef.current) clearInterval(intervalRef.current);
-
-    const secondsElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-    const minutesElapsed = Math.max(1, Math.round(secondsElapsed / 60));
-
-    onStop(minutesElapsed);
-
-    setElapsed((prev) => ({ ...prev, [activeProjectId]: 0 }));
-    setActiveProjectId(null);
-    startTimeRef.current = null;
-  }, [activeProjectId, onStop]);
-
-  // Save time on page refresh/close
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (activeProjectId && startTimeRef.current) {
+      const currentId = activeIdRef.current;
+      if (currentId && startTimeRef.current) {
         const secondsElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         const minutesElapsed = Math.max(1, Math.round(secondsElapsed / 60));
-        onStop(minutesElapsed);
+        onStop(currentId, minutesElapsed);
       }
     };
-
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [activeProjectId, onStop]);
+  }, [onStop]);
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, []);
 
-  return {
-    activeProjectId,
-    elapsed,
-    start,
-    stop,
-    isRunning: (projectId: string) => activeProjectId === projectId,
-  };
+  return { activeId, elapsed, start, stop, isRunning: (id: string) => activeId === id };
 };

@@ -15,6 +15,19 @@ export interface Project {
   deadline?: string;
 }
 
+export interface Subtask {
+  _id: string;
+  projectId: string;
+  userId: string;
+  name: string;
+  estimatedMinutes: number;
+  loggedMinutes: number;
+  status: 'not started' | 'in progress' | 'completed';
+  order: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProjectsResponse {
   projects: Project[];
   total: number;
@@ -85,3 +98,17 @@ export const updateProject = (id: string, data: Partial<Project>) =>
   api.put<Project>(`/projects/${id}`, data);
 export const deleteProject = (id: string) => api.delete(`/projects/${id}`);
 export const getCategories = () => api.get<string[]>('/projects/categories');
+
+/* Subtasks */
+export const getSubtasks = (projectId: string) =>
+  api.get<Subtask[]>(`/projects/${projectId}/subtasks`);
+export const createSubtask = (projectId: string, data: { name: string; estimatedMinutes: number }) =>
+  api.post<Subtask>(`/projects/${projectId}/subtasks`, data);
+export const updateSubtask = (projectId: string, subtaskId: string, data: Partial<Subtask>) =>
+  api.put<Subtask>(`/projects/${projectId}/subtasks/${subtaskId}`, data);
+export const deleteSubtask = (projectId: string, subtaskId: string) =>
+  api.delete(`/projects/${projectId}/subtasks/${subtaskId}`);
+export const reorderSubtasks = (projectId: string, orderedIds: string[]) =>
+  api.put(`/projects/${projectId}/subtasks/reorder`, { orderedIds });
+export const reorderProjects = (orderedIds: string[]) =>
+  api.put('/projects/reorder', { orderedIds });

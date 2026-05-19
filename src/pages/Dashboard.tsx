@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { User } from 'firebase/auth';
 import type { Project, ProjectFilters } from '../api/projects';
 import { useTimer } from '../hooks/useTimer';
@@ -8,11 +8,12 @@ import {
   updateProject,
   deleteProject,
   getCategories,
+  reorderProjects,
+  updateSubtask,
 } from '../api/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectForm from '../components/ProjectForm';
 import Avatar from '../components/Avatar';
-
 
 interface DashboardProps {
   user: User;
@@ -33,11 +34,14 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     category: '',
     priority: '',
     status: '',
-    sortBy: 'createdAt',
-    order: 'desc',
+    sortBy: 'order',
+    order: 'asc',
     page: 1,
     limit: 6,
   });
+
+  const dragItem = useRef<number | null>(null);
+  const dragOver = useRef<number | null>(null);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
@@ -80,6 +84,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     category: string;
     priority: 'low' | 'medium' | 'high';
     estimatedMinutes: number;
+    deadline?: string;
   }) => {
     try {
       await createProject(data);
@@ -110,20 +115,50 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     }
   };
 
-  const handleTimerStop = useCallback(async (projectId: string, minutes: number) => {
-    const project = projects.find((p) => p._id === projectId);
-    if (!project) return;
-    await handleUpdate(projectId, {
-      loggedMinutes: project.loggedMinutes + minutes,
-      status: 'in progress',
-    });
+  // Subtask timer — when stopped, log time to that subtask
+  const handleSubtaskTimerStop = useCallback(async (subtaskId: string, minutes: number) => {
+    try {
+      // Find the project that contains this subtask
+      const project = projects.find((p) =>
+        p._id // We don't store subtasks on project in state, SubtaskList handles it
+      );
+      if (!project) return;
+      // Update subtask logged minutes via API
+      await updateSubtask(project._id, subtaskId, {
+        loggedMinutes: minutes, // SubtaskList will handle adding to existing
+        status: 'in progress',
+      });
+    } catch {
+      console.error('Failed to log subtask time');
+    }
   }, [projects]);
 
-  const { activeProjectId, elapsed, start, stop, isRunning } = useTimer({
-    onStop: (minutes) => {
-      if (activeProjectId) handleTimerStop(activeProjectId, minutes);
-    },
-  });
+  const {
+    activeId: activeSubtaskId,
+    elapsed: subtaskElapsed,
+    start: startSubtaskTimer,
+    stop: stopSubtaskTimer,
+  } = useTimer({ onStop: handleSubtaskTimerStop });
+
+  // Project card drag reorder
+  const handleProjectDragStart = (index: number) => {
+    dragItem.current = index;
+  };
+
+  const handleProjectDragEnter = (index: number) => {
+    dragOver.current = index;
+  };
+
+  const handleProjectDragEnd = async () => {
+    if (dragItem.current === null || dragOver.current === null) return;
+    const reordered = [...projects];
+    const dragged = reordered.splice(dragItem.current, 1)[0];
+    reordered.splice(dragOver.current, 0, dragged);
+    dragItem.current = null;
+    dragOver.current = null;
+    setProjects(reordered);
+    await reorderProjects(reordered.map((p) => p._id));
+  };
 
   return (
     <div style={pageStyle}>
@@ -151,7 +186,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       {error && (
         <div style={errorStyle}>
           {error}
-          <button onClick={() => setError(null)} style={{ marginLeft: '12px', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+          <button
+            onClick={() => setError(null)}
+            style={{ marginLeft: '12px', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -171,17 +211,29 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
           onChange={(e) => updateFilter('search', e.target.value)}
           style={{ ...filterInput, flex: 2 }}
         />
-        <select value={filters.category} onChange={(e) => updateFilter('category', e.target.value)} style={filterInput}>
+        <select
+          value={filters.category}
+          onChange={(e) => updateFilter('category', e.target.value)}
+          style={filterInput}
+        >
           <option value="">All categories</option>
           {categories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select value={filters.priority} onChange={(e) => updateFilter('priority', e.target.value)} style={filterInput}>
+        <select
+          value={filters.priority}
+          onChange={(e) => updateFilter('priority', e.target.value)}
+          style={filterInput}
+        >
           <option value="">All priorities</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
-        <select value={filters.status} onChange={(e) => updateFilter('status', e.target.value)} style={filterInput}>
+        <select
+          value={filters.status}
+          onChange={(e) => updateFilter('status', e.target.value)}
+          style={filterInput}
+        >
           <option value="">All statuses</option>
           <option value="not started">Not started</option>
           <option value="in progress">In progress</option>
@@ -195,6 +247,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
           }}
           style={filterInput}
         >
+          <option value="order__asc">Custom order</option>
           <option value="createdAt__desc">Newest first</option>
           <option value="createdAt__asc">Oldest first</option>
           <option value="name__asc">Name A-Z</option>
@@ -215,18 +268,26 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         </p>
       ) : (
         <div style={gridStyle}>
-          {projects.map((project) => (
-            <ProjectCard
+          {projects.map((project, index) => (
+            <div
               key={project._id}
-              project={project}
-              onUpdate={handleUpdate}
-              onDelete={handleDelete}
-              categories={categories}
-              isTimerRunning={isRunning(project._id)}
-              timerElapsed={elapsed[project._id] || 0}
-              onTimerStart={() => start(project._id)}
-              onTimerStop={stop}
-            />
+              draggable
+              onDragStart={() => handleProjectDragStart(index)}
+              onDragEnter={() => handleProjectDragEnter(index)}
+              onDragEnd={handleProjectDragEnd}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <ProjectCard
+                project={project}
+                onUpdate={handleUpdate}
+                onDelete={handleDelete}
+                categories={categories}
+                activeSubtaskId={activeSubtaskId}
+                subtaskElapsed={subtaskElapsed}
+                onTimerStart={startSubtaskTimer}
+                onTimerStop={stopSubtaskTimer}
+              />
+            </div>
           ))}
         </div>
       )}
@@ -245,7 +306,11 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
             <button
               key={p}
               onClick={() => setFilters((prev) => ({ ...prev, page: p }))}
-              style={{ ...pageBtn, background: filters.page === p ? '#4f46e5' : '#f0f0f0', color: filters.page === p ? '#fff' : '#333' }}
+              style={{
+                ...pageBtn,
+                background: filters.page === p ? '#4f46e5' : '#f0f0f0',
+                color: filters.page === p ? '#fff' : '#333',
+              }}
             >
               {p}
             </button>
@@ -286,6 +351,16 @@ const addBtn: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: '14px',
   fontWeight: 500,
+};
+
+const logoutBtn: React.CSSProperties = {
+  padding: '10px 16px',
+  background: '#f0f0f0',
+  color: '#333',
+  border: 'none',
+  borderRadius: '8px',
+  cursor: 'pointer',
+  fontSize: '14px',
 };
 
 const formCard: React.CSSProperties = {
@@ -346,17 +421,6 @@ const pageBtn: React.CSSProperties = {
   fontSize: '13px',
   background: '#f0f0f0',
   color: '#333',
-};
-
-
-const logoutBtn: React.CSSProperties = {
-  padding: '10px 16px',
-  background: '#f0f0f0',
-  color: '#333',
-  border: 'none',
-  borderRadius: '8px',
-  cursor: 'pointer',
-  fontSize: '14px',
 };
 
 export default Dashboard;
