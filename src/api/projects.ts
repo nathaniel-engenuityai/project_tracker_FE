@@ -32,6 +32,28 @@ export interface ProjectFilters {
   limit?: number;
 }
 
+export const uploadAvatar = async (file: File): Promise<string> => {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Not authenticated');
+  
+  const token = await user.getIdToken();
+  const formData = new FormData();
+  formData.append('avatar', file);
+
+  const res = await fetch(
+    'https://project-tracker-backend-889275799849.us-central1.run.app/api/upload/avatar',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    }
+  );
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message);
+  return data.url;
+};
+
 const api = axios.create({
   baseURL: 'https://project-tracker-backend-889275799849.us-central1.run.app/api',
 });

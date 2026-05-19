@@ -10,6 +10,7 @@ import {
 } from '../api/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectForm from '../components/ProjectForm';
+import Avatar from '../components/Avatar';
 
 interface DashboardProps {
   user: User;
@@ -114,10 +115,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         <div>
           <h1 style={{ margin: 0, fontSize: '24px' }}>Project Tracker</h1>
           <p style={{ margin: '4px 0 0', color: '#666', fontSize: '14px' }}>
-            {total} project{total !== 1 ? 's' : ''} · {user.displayName}
+            {total} project{total !== 1 ? 's' : ''}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <Avatar user={user} />
+          <span style={{ fontSize: '14px', color: '#555' }}>{user.displayName}</span>
           <button onClick={() => setShowForm(!showForm)} style={addBtn}>
             {showForm ? 'Cancel' : '+ New Project'}
           </button>
