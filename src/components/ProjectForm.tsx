@@ -9,6 +9,7 @@ interface Props {
     category: string;
     priority: 'low' | 'medium' | 'high';
     estimatedMinutes: number;
+    deadline?: string;
   }) => void;
   existingProject?: Project;
   onCancel?: () => void;
@@ -24,6 +25,7 @@ const ProjectForm = ({ onSubmit, existingProject, onCancel, categories }: Props)
     priority: 'medium' as 'low' | 'medium' | 'high',
     timeValue: '',
     timeUnit: 'hours' as 'hours' | 'minutes',
+    deadline: '',
   });
 
   useEffect(() => {
@@ -39,6 +41,9 @@ const ProjectForm = ({ onSubmit, existingProject, onCancel, categories }: Props)
           ? String(existingProject.estimatedMinutes / 60)
           : String(existingProject.estimatedMinutes),
         timeUnit: isHours ? 'hours' : 'minutes',
+        deadline: existingProject.deadline
+          ? new Date(existingProject.deadline).toISOString().split('T')[0]
+          : '',
       });
     }
   }, [existingProject]);
@@ -56,8 +61,18 @@ const ProjectForm = ({ onSubmit, existingProject, onCancel, categories }: Props)
       category: finalCategory,
       priority: form.priority,
       estimatedMinutes: toMinutes(Number(form.timeValue), form.timeUnit),
+      deadline: form.deadline || undefined,
     });
-    setForm({ name: '', description: '', category: '', newCategory: '', priority: 'medium', timeValue: '', timeUnit: 'hours' });
+    setForm({
+      name: '',
+      description: '',
+      category: '',
+      newCategory: '',
+      priority: 'medium',
+      timeValue: '',
+      timeUnit: 'hours',
+      deadline: '',
+    });
   };
 
   return (
@@ -119,6 +134,21 @@ const ProjectForm = ({ onSubmit, existingProject, onCancel, categories }: Props)
           <option value="hours">Hours</option>
           <option value="minutes">Minutes</option>
         </select>
+      </div>
+
+      {/* Deadline */}
+      <div>
+        <label style={{ fontSize: '13px', color: '#555', display: 'block', marginBottom: '4px' }}>
+          Deadline (optional)
+        </label>
+        <input
+          name="deadline"
+          type="date"
+          value={form.deadline}
+          onChange={handleChange}
+          min={new Date().toISOString().split('T')[0]}
+          style={inputStyle}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: '8px' }}>
