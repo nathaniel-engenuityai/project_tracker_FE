@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { User } from 'firebase/auth';
 import type { Project, ProjectFilters } from '../api/projects';
+import { useTimer } from '../hooks/useTimer';
 import {
   getProjects,
   createProject,
@@ -11,6 +12,7 @@ import {
 import ProjectCard from '../components/ProjectCard';
 import ProjectForm from '../components/ProjectForm';
 import Avatar from '../components/Avatar';
+
 
 interface DashboardProps {
   user: User;
@@ -107,6 +109,21 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       setError('Failed to delete project');
     }
   };
+
+  const handleTimerStop = useCallback(async (projectId: string, minutes: number) => {
+    const project = projects.find((p) => p._id === projectId);
+    if (!project) return;
+    await handleUpdate(projectId, {
+      loggedMinutes: project.loggedMinutes + minutes,
+      status: 'in progress',
+    });
+  }, [projects]);
+
+  const { activeProjectId, elapsed, start, stop, isRunning } = useTimer({
+    onStop: (minutes) => {
+      if (activeProjectId) handleTimerStop(activeProjectId, minutes);
+    },
+  });
 
   return (
     <div style={pageStyle}>
@@ -205,6 +222,10 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               categories={categories}
+              isTimerRunning={isRunning(project._id)}
+              timerElapsed={elapsed[project._id] || 0}
+              onTimerStart={() => start(project._id)}
+              onTimerStop={stop}
             />
           ))}
         </div>

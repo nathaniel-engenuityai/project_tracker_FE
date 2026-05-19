@@ -12,6 +12,7 @@ export interface Project {
   status: 'not started' | 'in progress' | 'completed';
   createdAt: string;
   updatedAt: string;
+  deadline?: string;
 }
 
 export interface ProjectsResponse {
@@ -35,7 +36,7 @@ export interface ProjectFilters {
 export const uploadAvatar = async (file: File): Promise<string> => {
   const user = auth.currentUser;
   if (!user) throw new Error('Not authenticated');
-  
+
   const token = await user.getIdToken();
   const formData = new FormData();
   formData.append('avatar', file);
