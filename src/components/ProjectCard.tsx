@@ -1,18 +1,21 @@
 import { useState } from 'react';
-import type { Project } from '../api/projects';
-import { formatTimer, getDeadlineInfo } from '../utils/time';
+import type { Project, Subtask } from '../api/projects';
+import { getSubtasks } from '../api/projects';
+import { getDeadlineInfo } from '../utils/time';
 import ProgressBar from './ProgressBar';
 import ProjectForm from './ProjectForm';
+import SubtaskList from './SubtaskList';
 
 interface Props {
   project: Project;
   onUpdate: (id: string, data: Partial<Project>) => void;
   onDelete: (id: string) => void;
   categories: string[];
-  isTimerRunning: boolean;
-  timerElapsed: number;
-  onTimerStart: () => void;
+  activeSubtaskId: string | null;
+  subtaskElapsed: Record<string, number>;
+  onTimerStart: (subtaskId: string) => void;
   onTimerStop: () => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
 }
 
 const statusColors: Record<Project['status'], string> = {
@@ -32,12 +35,34 @@ const ProjectCard = ({
   onUpdate,
   onDelete,
   categories,
-  isTimerRunning,
-  timerElapsed,
+  activeSubtaskId,
+  subtaskElapsed,
   onTimerStart,
   onTimerStop,
+  dragHandleProps,
 }: Props) => {
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  const [loadingSubtasks, setLoadingSubtasks] = useState(false);
+
+  const totalEstimated = subtasks.reduce((sum, s) => sum + s.estimatedMinutes, 0);
+  const totalLogged = subtasks.reduce((sum, s) => sum + s.loggedMinutes, 0);
+
+  const handleExpand = async () => {
+    if (!expanded && subtasks.length === 0) {
+      setLoadingSubtasks(true);
+      try {
+        const res = await getSubtasks(project._id);
+        setSubtasks(res.data);
+      } catch {
+        console.error('Failed to load subtasks');
+      } finally {
+        setLoadingSubtasks(false);
+      }
+    }
+    setExpanded(!expanded);
+  };
 
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     onUpdate(project._id, { status: e.target.value as Project['status'] });
@@ -77,7 +102,10 @@ const ProjectCard = ({
         <>
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-            <h3 style={{ margin: 0, fontSize: '16px', flex: 1 }}>{project.name}</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
+              <span {...dragHandleProps} style={dragHandle} title="Drag to reorder">⠿</span>
+              <h3 style={{ margin: 0, fontSize: '16px' }}>{project.name}</h3>
+            </div>
             <span style={{ ...badge, background: statusColors[project.status] }}>
               {project.status}
             </span>
@@ -109,23 +137,11 @@ const ProjectCard = ({
             </p>
           )}
 
-          {/* Progress */}
+          {/* Progress — based on subtasks if any exist */}
           <ProgressBar
-            estimatedMinutes={project.estimatedMinutes}
-            loggedMinutes={project.loggedMinutes}
+            estimatedMinutes={totalEstimated || project.estimatedMinutes}
+            loggedMinutes={totalLogged || project.loggedMinutes}
           />
-
-          {/* Timer */}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
-            {isTimerRunning ? (
-              <>
-                <span style={timerDisplay}>{formatTimer(timerElapsed)}</span>
-                <button onClick={onTimerStop} style={stopBtn}>⏹ Stop & Log</button>
-              </>
-            ) : (
-              <button onClick={onTimerStart} style={startBtn}>▶ Start Timer</button>
-            )}
-          </div>
 
           {/* Status + Actions */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', alignItems: 'center' }}>
@@ -135,10 +151,31 @@ const ProjectCard = ({
               <option value="completed">Completed</option>
             </select>
             <div style={{ display: 'flex', gap: '8px', marginLeft: '8px' }}>
+              <button onClick={handleExpand} style={expandBtn}>
+                {expanded ? '▲ Hide' : '▼ Subtasks'}
+                {subtasks.length > 0 && ` (${subtasks.length})`}
+              </button>
               <button onClick={() => setEditing(true)} style={editBtn}>Edit</button>
               <button onClick={() => onDelete(project._id)} style={deleteBtn}>Delete</button>
             </div>
           </div>
+
+          {/* Subtasks */}
+          {expanded && (
+            loadingSubtasks ? (
+              <p style={{ fontSize: '13px', color: '#999', marginTop: '8px' }}>Loading...</p>
+            ) : (
+              <SubtaskList
+                projectId={project._id}
+                subtasks={subtasks}
+                onSubtasksChange={setSubtasks}
+                activeSubtaskId={activeSubtaskId}
+                subtaskElapsed={subtaskElapsed}
+                onTimerStart={onTimerStart}
+                onTimerStop={onTimerStop}
+              />
+            )
+          )}
         </>
       )}
     </div>
@@ -151,6 +188,13 @@ const cardStyle: React.CSSProperties = {
   borderRadius: '10px',
   padding: '16px',
   boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+};
+
+const dragHandle: React.CSSProperties = {
+  color: '#ccc',
+  fontSize: '18px',
+  cursor: 'grab',
+  userSelect: 'none',
 };
 
 const badge: React.CSSProperties = {
@@ -178,34 +222,14 @@ const inputStyle: React.CSSProperties = {
   background: '#fff',
 };
 
-const timerDisplay: React.CSSProperties = {
-  fontFamily: 'monospace',
-  fontSize: '18px',
-  fontWeight: 600,
-  color: '#4f46e5',
-  minWidth: '80px',
-};
-
-const startBtn: React.CSSProperties = {
-  padding: '6px 14px',
-  background: '#4f46e5',
-  color: '#fff',
-  border: 'none',
+const expandBtn: React.CSSProperties = {
+  padding: '6px 12px',
+  background: '#f5f5f5',
+  color: '#555',
+  border: '1px solid #e0e0e0',
   borderRadius: '6px',
   cursor: 'pointer',
-  fontSize: '13px',
-  fontWeight: 500,
-};
-
-const stopBtn: React.CSSProperties = {
-  padding: '6px 14px',
-  background: '#e74c3c',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '6px',
-  cursor: 'pointer',
-  fontSize: '13px',
-  fontWeight: 500,
+  fontSize: '12px',
 };
 
 const editBtn: React.CSSProperties = {
