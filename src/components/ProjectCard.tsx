@@ -156,7 +156,7 @@ const ProjectCard = ({
                 {subtasks.length > 0 && ` (${subtasks.length})`}
               </button>
               <button onClick={() => setEditing(true)} style={editBtn}>Edit</button>
-              <button onClick={() => onDelete(project._id)} style={deleteBtn}>Delete</button>
+              <button onClick={() => onDelete(project._id)} style={deleteBtn}>X</button>
             </div>
           </div>
 
