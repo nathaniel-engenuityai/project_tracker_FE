@@ -9,7 +9,6 @@ import {
   deleteProject,
   getCategories,
   reorderProjects,
-  updateSubtask,
 } from '../api/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectForm from '../components/ProjectForm';
@@ -29,6 +28,13 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const [total, setTotal] = useState<number>(0);
   const [totalPages, setTotalPages] = useState<number>(1);
 
+  // Drag state for visual feedback
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOver = useRef<number | null>(null);
+
   const [filters, setFilters] = useState<ProjectFilters>({
     search: '',
     category: '',
@@ -39,9 +45,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     page: 1,
     limit: 6,
   });
-
-  const dragItem = useRef<number | null>(null);
-  const dragOver = useRef<number | null>(null);
 
   const fetchProjects = useCallback(async () => {
     setLoading(true);
@@ -115,47 +118,45 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     }
   };
 
-  // Subtask timer — when stopped, log time to that subtask
-  const handleSubtaskTimerStop = useCallback(async (subtaskId: string, minutes: number) => {
-    try {
-      // Find the project that contains this subtask
-      const project = projects.find((p) =>
-        p._id // We don't store subtasks on project in state, SubtaskList handles it
-      );
-      if (!project) return;
-      // Update subtask logged minutes via API
-      await updateSubtask(project._id, subtaskId, {
-        loggedMinutes: minutes, // SubtaskList will handle adding to existing
-        status: 'in progress',
-      });
-    } catch {
-      console.error('Failed to log subtask time');
-    }
-  }, [projects]);
-
+  // Subtask timer — when stopped, log time to the project the subtask belongs to
+  // The project card passes onProjectTimeLog which calls handleUpdate directly
+  // useTimer just needs to call onTimerStop — the card handles the DB update
   const {
     activeId: activeSubtaskId,
     elapsed: subtaskElapsed,
     start: startSubtaskTimer,
     stop: stopSubtaskTimer,
-  } = useTimer({ onStop: handleSubtaskTimerStop });
+  } = useTimer({
+    onStop: (_id, _minutes) => {
+      // Project cards handle their own time logging via onProjectTimeLog
+      // This callback is intentionally empty here
+    },
+  });
 
-  // Project card drag reorder
+  // Project drag handlers
   const handleProjectDragStart = (index: number) => {
     dragItem.current = index;
+    setDragIndex(index);
   };
 
   const handleProjectDragEnter = (index: number) => {
     dragOver.current = index;
+    setDropIndex(index);
   };
 
   const handleProjectDragEnd = async () => {
-    if (dragItem.current === null || dragOver.current === null) return;
+    if (dragItem.current === null || dragOver.current === null) {
+      setDragIndex(null);
+      setDropIndex(null);
+      return;
+    }
     const reordered = [...projects];
     const dragged = reordered.splice(dragItem.current, 1)[0];
     reordered.splice(dragOver.current, 0, dragged);
     dragItem.current = null;
     dragOver.current = null;
+    setDragIndex(null);
+    setDropIndex(null);
     setProjects(reordered);
     await reorderProjects(reordered.map((p) => p._id));
   };
@@ -176,9 +177,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
           <button onClick={() => setShowForm(!showForm)} style={addBtn}>
             {showForm ? 'Cancel' : '+ New Project'}
           </button>
-          <button onClick={onLogout} style={logoutBtn}>
-            Sign out
-          </button>
+          <button onClick={onLogout} style={logoutBtn}>Sign out</button>
         </div>
       </div>
 
@@ -276,7 +275,13 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
               onDragEnter={() => handleProjectDragEnter(index)}
               onDragEnd={handleProjectDragEnd}
               onDragOver={(e) => e.preventDefault()}
+              style={{ position: 'relative' }}
             >
+              {/* Drop indicator — above */}
+              {dropIndex === index && dragIndex !== null && dragIndex > index && (
+                <div style={dropIndicator} />
+              )}
+
               <ProjectCard
                 project={project}
                 onUpdate={handleUpdate}
@@ -286,7 +291,14 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                 subtaskElapsed={subtaskElapsed}
                 onTimerStart={startSubtaskTimer}
                 onTimerStop={stopSubtaskTimer}
+                isDragging={dragIndex === index}
+                isDropTarget={dropIndex === index && dragIndex !== index}
               />
+
+              {/* Drop indicator — below */}
+              {dropIndex === index && dragIndex !== null && dragIndex < index && (
+                <div style={dropIndicator} />
+              )}
             </div>
           ))}
         </div>
@@ -326,6 +338,14 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       )}
     </div>
   );
+};
+
+const dropIndicator: React.CSSProperties = {
+  height: '3px',
+  background: '#4f46e5',
+  borderRadius: '999px',
+  margin: '4px 0',
+  transition: 'all 0.15s',
 };
 
 const pageStyle: React.CSSProperties = {

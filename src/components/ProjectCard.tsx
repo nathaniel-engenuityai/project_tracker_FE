@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Project, Subtask } from '../api/projects';
 import { getSubtasks } from '../api/projects';
-import { getDeadlineInfo } from '../utils/time';
+import { getDeadlineInfo, toMinutes } from '../utils/time';
 import ProgressBar from './ProgressBar';
 import ProjectForm from './ProjectForm';
 import SubtaskList from './SubtaskList';
@@ -15,7 +15,8 @@ interface Props {
   subtaskElapsed: Record<string, number>;
   onTimerStart: (subtaskId: string) => void;
   onTimerStop: () => void;
-  dragHandleProps?: React.HTMLAttributes<HTMLSpanElement>;
+  isDragging?: boolean;
+  isDropTarget?: boolean;
 }
 
 const statusColors: Record<Project['status'], string> = {
@@ -39,15 +40,17 @@ const ProjectCard = ({
   subtaskElapsed,
   onTimerStart,
   onTimerStop,
-  dragHandleProps,
+  isDragging = false,
+  isDropTarget = false,
 }: Props) => {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [loadingSubtasks, setLoadingSubtasks] = useState(false);
 
-  const totalEstimated = subtasks.reduce((sum, s) => sum + s.estimatedMinutes, 0);
-  const totalLogged = subtasks.reduce((sum, s) => sum + s.loggedMinutes, 0);
+  // Manual log state (shown when subtasks not expanded)
+  const [logInput, setLogInput] = useState('');
+  const [logUnit, setLogUnit] = useState<'hours' | 'minutes'>('minutes');
 
   const handleExpand = async () => {
     if (!expanded && subtasks.length === 0) {
@@ -80,6 +83,26 @@ const ProjectCard = ({
     setEditing(false);
   };
 
+  // Log time manually to project
+  const handleManualLog = () => {
+    const value = parseFloat(logInput);
+    if (!value || value <= 0) return;
+    const minutes = toMinutes(value, logUnit);
+    onUpdate(project._id, {
+      loggedMinutes: project.loggedMinutes + minutes,
+      status: 'in progress',
+    });
+    setLogInput('');
+  };
+
+  // When subtask timer stops, log those minutes to the project
+  const handleSubtaskTimeLog = (minutes: number) => {
+    onUpdate(project._id, {
+      loggedMinutes: project.loggedMinutes + minutes,
+      status: 'in progress',
+    });
+  };
+
   const priority = priorityColors[project.priority];
   const { label: deadlineLabel, borderColor } = getDeadlineInfo(project.deadline);
 
@@ -87,8 +110,18 @@ const ProjectCard = ({
     <div
       style={{
         ...cardStyle,
-        borderColor: project.deadline ? borderColor : '#e0e0e0',
-        borderWidth: project.deadline ? '2px' : '1px',
+        borderColor: project.deadline ? borderColor : isDropTarget ? '#4f46e5' : '#e0e0e0',
+        borderWidth: project.deadline || isDropTarget ? '2px' : '1px',
+        borderStyle: isDropTarget ? 'dashed' : 'solid',
+        opacity: isDragging ? 0.45 : 1,
+        boxShadow: isDragging
+          ? '0 8px 32px rgba(79,70,229,0.18)'
+          : isDropTarget
+          ? '0 0 0 3px rgba(79,70,229,0.15)'
+          : '0 1px 4px rgba(0,0,0,0.06)',
+        transform: isDragging ? 'scale(0.97) rotate(-1deg)' : 'scale(1) rotate(0deg)',
+        transition: 'opacity 0.15s, box-shadow 0.15s, transform 0.15s, border-color 0.15s',
+        cursor: isDragging ? 'grabbing' : 'default',
       }}
     >
       {editing ? (
@@ -103,7 +136,7 @@ const ProjectCard = ({
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
-              <span {...dragHandleProps} style={dragHandle} title="Drag to reorder">⠿</span>
+              <span style={dragHandle} title="Drag to reorder">⠿</span>
               <h3 style={{ margin: 0, fontSize: '16px' }}>{project.name}</h3>
             </div>
             <span style={{ ...badge, background: statusColors[project.status] }}>
@@ -137,11 +170,35 @@ const ProjectCard = ({
             </p>
           )}
 
-          {/* Progress — based on subtasks if any exist */}
+          {/* Progress — always uses project's own time */}
           <ProgressBar
-            estimatedMinutes={totalEstimated || project.estimatedMinutes}
-            loggedMinutes={totalLogged || project.loggedMinutes}
+            estimatedMinutes={project.estimatedMinutes}
+            loggedMinutes={project.loggedMinutes}
           />
+
+          {/* Log time — shown when subtasks not expanded */}
+          {!expanded && (
+            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
+              <input
+                type="number"
+                placeholder="Log time"
+                value={logInput}
+                onChange={(e) => setLogInput(e.target.value)}
+                min="1"
+                step="1"
+                style={{ ...inputStyle, width: '90px' }}
+              />
+              <select
+                value={logUnit}
+                onChange={(e) => setLogUnit(e.target.value as 'hours' | 'minutes')}
+                style={{ ...inputStyle, width: '100px' }}
+              >
+                <option value="minutes">Minutes</option>
+                <option value="hours">Hours</option>
+              </select>
+              <button onClick={handleManualLog} style={logBtn}>+ Log</button>
+            </div>
+          )}
 
           {/* Status + Actions */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', alignItems: 'center' }}>
@@ -156,7 +213,7 @@ const ProjectCard = ({
                 {subtasks.length > 0 && ` (${subtasks.length})`}
               </button>
               <button onClick={() => setEditing(true)} style={editBtn}>Edit</button>
-              <button onClick={() => onDelete(project._id)} style={deleteBtn}>X</button>
+              <button onClick={() => onDelete(project._id)} style={deleteBtn}>✕</button>
             </div>
           </div>
 
@@ -169,6 +226,7 @@ const ProjectCard = ({
                 projectId={project._id}
                 subtasks={subtasks}
                 onSubtasksChange={setSubtasks}
+                onProjectTimeLog={handleSubtaskTimeLog}
                 activeSubtaskId={activeSubtaskId}
                 subtaskElapsed={subtaskElapsed}
                 onTimerStart={onTimerStart}
@@ -185,7 +243,7 @@ const ProjectCard = ({
 const cardStyle: React.CSSProperties = {
   background: '#fff',
   border: '1px solid #e0e0e0',
-  borderRadius: '10px',
+  borderRadius: '12px',
   padding: '16px',
   boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
 };
@@ -195,6 +253,7 @@ const dragHandle: React.CSSProperties = {
   fontSize: '18px',
   cursor: 'grab',
   userSelect: 'none',
+  flexShrink: 0,
 };
 
 const badge: React.CSSProperties = {
@@ -222,6 +281,17 @@ const inputStyle: React.CSSProperties = {
   background: '#fff',
 };
 
+const logBtn: React.CSSProperties = {
+  padding: '6px 14px',
+  background: '#4f46e5',
+  color: '#fff',
+  border: 'none',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  fontSize: '13px',
+  fontWeight: 500,
+};
+
 const expandBtn: React.CSSProperties = {
   padding: '6px 12px',
   background: '#f5f5f5',
@@ -230,6 +300,7 @@ const expandBtn: React.CSSProperties = {
   borderRadius: '6px',
   cursor: 'pointer',
   fontSize: '12px',
+  whiteSpace: 'nowrap',
 };
 
 const editBtn: React.CSSProperties = {
@@ -243,7 +314,7 @@ const editBtn: React.CSSProperties = {
 };
 
 const deleteBtn: React.CSSProperties = {
-  padding: '6px 12px',
+  padding: '6px 10px',
   background: '#fdecea',
   color: '#e74c3c',
   border: 'none',
