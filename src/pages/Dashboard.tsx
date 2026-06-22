@@ -208,7 +208,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
           placeholder="Search projects..."
           value={filters.search}
           onChange={(e) => updateFilter('search', e.target.value)}
-          style={{ ...filterInput, flex: 2 }}
+          style={filterInput}
         />
         <select
           value={filters.category}
@@ -353,6 +353,8 @@ const pageStyle: React.CSSProperties = {
   margin: '0 auto',
   padding: '32px 20px',
   fontFamily: 'system-ui, sans-serif',
+  boxSizing: 'border-box',
+  overflowX: 'hidden',
 };
 
 const headerStyle: React.CSSProperties = {
@@ -360,6 +362,8 @@ const headerStyle: React.CSSProperties = {
   justifyContent: 'space-between',
   alignItems: 'center',
   marginBottom: '24px',
+  flexWrap: 'wrap',
+  gap: '12px',
 };
 
 const addBtn: React.CSSProperties = {
@@ -392,10 +396,10 @@ const formCard: React.CSSProperties = {
 };
 
 const filterBar: React.CSSProperties = {
-  display: 'flex',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
   gap: '8px',
   marginBottom: '20px',
-  flexWrap: 'wrap',
 };
 
 const filterInput: React.CSSProperties = {
@@ -404,14 +408,16 @@ const filterInput: React.CSSProperties = {
   border: '1px solid #ccc',
   fontSize: '13px',
   background: '#fff',
-  flex: 1,
-  minWidth: '140px',
+  width: '100%',
+  boxSizing: 'border-box',
+  minWidth: 0,
 };
 
 const gridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
   gap: '16px',
+  minWidth: 0,
 };
 
 const errorStyle: React.CSSProperties = {

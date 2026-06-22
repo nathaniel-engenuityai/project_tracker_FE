@@ -53,18 +53,30 @@ export const uploadAvatar = async (file: File): Promise<string> => {
   const token = await user.getIdToken();
   const formData = new FormData();
   formData.append('avatar', file);
+  // Send the userId so the backend can scope the file to users/<uid>/avatar.*
+  formData.append('userId', user.uid);
 
-  const res = await fetch(
-    'https://project-tracker-backend-889275799849.us-central1.run.app/api/upload/avatar',
-    {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
-    }
-  );
+  let res: Response;
+  try {
+    res = await fetch(
+      'https://project-tracker-backend-889275799849.us-central1.run.app/api/upload/avatar',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      }
+    );
+  } catch {
+    throw new Error('Network error. Please check your connection.');
+  }
 
   const data = await res.json();
-  if (!res.ok) throw new Error(data.message);
+  if (!res.ok) {
+    throw new Error(data.message || `Upload failed (${res.status})`);
+  }
+  if (!data.url) {
+    throw new Error('No URL returned from server');
+  }
   return data.url;
 };
 

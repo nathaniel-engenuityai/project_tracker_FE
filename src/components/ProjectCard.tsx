@@ -178,7 +178,7 @@ const ProjectCard = ({
 
           {/* Log time — shown when subtasks not expanded */}
           {!expanded && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '6px', marginTop: '12px', alignItems: 'center' }}>
               <input
                 type="number"
                 placeholder="Log time"
@@ -186,12 +186,12 @@ const ProjectCard = ({
                 onChange={(e) => setLogInput(e.target.value)}
                 min="1"
                 step="1"
-                style={{ ...inputStyle, width: '90px' }}
+                style={{ ...inputStyle, flex: 1, minWidth: 0 }}
               />
               <select
                 value={logUnit}
                 onChange={(e) => setLogUnit(e.target.value as 'hours' | 'minutes')}
-                style={{ ...inputStyle, width: '100px' }}
+                style={{ ...inputStyle, flex: 1, minWidth: 0 }}
               >
                 <option value="minutes">Minutes</option>
                 <option value="hours">Hours</option>
@@ -201,13 +201,13 @@ const ProjectCard = ({
           )}
 
           {/* Status + Actions */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', alignItems: 'center' }}>
-            <select value={project.status} onChange={handleStatusChange} style={inputStyle}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
+            <select value={project.status} onChange={handleStatusChange} style={{ ...inputStyle, flex: '1 1 110px', minWidth: 0 }}>
               <option value="not started">Not started</option>
               <option value="in progress">In progress</option>
               <option value="completed">Completed</option>
             </select>
-            <div style={{ display: 'flex', gap: '8px', marginLeft: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
               <button onClick={handleExpand} style={expandBtn}>
                 {expanded ? '▲ Hide' : '▼ Subtasks'}
                 {subtasks.length > 0 && ` (${subtasks.length})`}
@@ -246,6 +246,9 @@ const cardStyle: React.CSSProperties = {
   borderRadius: '12px',
   padding: '16px',
   boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+  minWidth: 0,
+  overflow: 'hidden',
+  wordBreak: 'break-word',
 };
 
 const dragHandle: React.CSSProperties = {
