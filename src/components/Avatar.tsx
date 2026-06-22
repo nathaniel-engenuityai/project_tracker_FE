@@ -13,11 +13,11 @@ const Avatar = ({ user }: Props) => {
   const [error, setError] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const errorTimeoutRef = useRef<NodeJS.Timeout>();
+  const errorTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     return () => {
-      if (errorTimeoutRef.current) clearTimeout(errorTimeoutRef.current);
+      if (errorTimeoutRef.current !== undefined) clearTimeout(errorTimeoutRef.current);
     };
   }, []);
 
